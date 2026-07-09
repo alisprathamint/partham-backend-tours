@@ -8,6 +8,7 @@ import helmet from "helmet"
 
 // Import custom middleware & configurations
 import { requestLogger } from "./middleware/logger.js"
+import path from "path"
 import { uploadsDir } from "./config/multer.js"
 import { globalLimiter, sensitiveLimiter, xssSanitizer } from "./middleware/security.js"
 
@@ -18,6 +19,8 @@ import packageRouter from "./routes/package.js"
 import destinationRouter from "./routes/destination.js"
 import bookingRouter from "./routes/booking.js"
 import contactRouter from "./routes/contact.js"
+import settingsRouter from "./routes/settings.js"
+import authRouter from "./routes/auth.js"
 
 // Resolve Node v17+ IPv6 DNS lookup issues on Windows & ISP DNS blocking for MongoDB Atlas
 dns.setDefaultResultOrder("ipv4first")
@@ -37,6 +40,8 @@ const port = process.env.PORT || 5000
 // Serve static files from uploads directory (local environment only)
 if (process.env.VERCEL !== "1") {
   app.use("/uploads", express.static(uploadsDir))
+  const assetsDir = path.join(process.cwd(), "../pratham-tours-frontend/public/assets")
+  app.use("/assets", express.static(assetsDir))
 }
 
 // Global middlewares
@@ -44,9 +49,11 @@ app.use(requestLogger)
 
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "https://prathamtours.com",
@@ -62,6 +69,7 @@ app.use((req, res, next) => {
     const isAllowed =
       allowedOrigins.includes(normalizedOrigin) ||
       normalizedOrigin.endsWith(".vercel.app") ||
+      normalizedOrigin.endsWith(".devtunnels.ms") ||
       normalizedOrigin.startsWith("https://pratham-tours-client") ||
       /^http:\/\/(192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|10\.)/.test(normalizedOrigin)
 
@@ -93,14 +101,15 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 // Apply security headers via Helmet
 app.use(
   helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https:"],
+        imgSrc: ["'self'", "data:", "https:", "http:"],
+        connectSrc: ["'self'", "https:", "http:"],
         frameAncestors: ["'self'"],
       },
     },
@@ -141,12 +150,14 @@ app.use((req, res, next) => {
 })
 
 // Mount API routers
+app.use("/api", authRouter)
 app.use("/api", uploadRouter)
 app.use("/api", paymentRouter)
 app.use("/api", packageRouter)
 app.use("/api", destinationRouter)
 app.use("/api", bookingRouter)
 app.use("/api", contactRouter)
+app.use("/api", settingsRouter)
 
 // Health check endpoint
 app.get("/", (req, res) => {

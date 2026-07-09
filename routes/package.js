@@ -1,6 +1,7 @@
 import express from "express"
 import prisma from "../config/prisma.js"
 import { transporter } from "../config/email.js"
+import { verifyToken, isAdmin } from "../middleware/auth.js"
 import {
   generateAdminCustomPackageEmailHTML,
   generateCustomerCustomPackageEmailHTML,
@@ -202,6 +203,87 @@ router.get("/packages/:identifier", async (req, res) => {
   }
 })
 
+// Create a new package
+router.post("/packages", [verifyToken, isAdmin], async (req, res) => {
+  try {
+    const data = req.body;
+    
+    // Convert itinerary to a format Prisma can store as JSON, if provided
+    const newPackage = await prisma.package.create({
+      data: {
+        name: data.name,
+        location: data.location,
+        category: data.category || null,
+        price: data.price ? String(data.price) : "",
+        duration: data.duration || "",
+        image: data.image || null,
+        description: data.description || null,
+        featured: data.featured || false,
+        highlights: Array.isArray(data.highlights) ? data.highlights : [],
+        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+        exclusions: Array.isArray(data.exclusions) ? data.exclusions : [],
+        itinerary: data.itinerary || [],
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Package created successfully",
+      package: newPackage
+    });
+  } catch (error) {
+    console.error("Error creating package:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create package",
+      error: error.message,
+    });
+  }
+});
+
+// Update an existing package
+router.put("/packages/:id", [verifyToken, isAdmin], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: "Invalid package ID" });
+    }
+
+    const data = req.body;
+    
+    const updatedPackage = await prisma.package.update({
+      where: { id },
+      data: {
+        name: data.name,
+        location: data.location,
+        category: data.category || null,
+        price: data.price ? String(data.price) : "",
+        duration: data.duration || "",
+        image: data.image || null,
+        description: data.description || null,
+        featured: data.featured || false,
+        highlights: Array.isArray(data.highlights) ? data.highlights : [],
+        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+        exclusions: Array.isArray(data.exclusions) ? data.exclusions : [],
+        itinerary: data.itinerary || [],
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Package updated successfully",
+      package: updatedPackage
+    });
+  } catch (error) {
+    console.error("Error updating package:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update package",
+      error: error.message,
+    });
+  }
+});
+
 // Submit custom package request
 router.post("/submit-custom-package", async (req, res) => {
   try {
@@ -315,17 +397,28 @@ router.post("/submit-custom-package", async (req, res) => {
 })
 
 // Fetch all custom package requests
-router.get("/custom-package-requests", async (req, res) => {
+router.get("/custom-package-requests", verifyToken, async (req, res) => {
   try {
-    const requests = await prisma.customPackageRequest.findMany({
-      orderBy: {
-        request_date: "desc"
-      }
-    })
+    let query = {
+      orderBy: { request_date: "desc" }
+    };
+
+    // If user is SALES and region is not ALL, filter by departure_location
+    if (req.userRole === 'SALES' && req.userRegion && req.userRegion !== 'ALL') {
+      // Use case-insensitive search for region in departure_location
+      query.where = {
+        departure_location: {
+          contains: req.userRegion,
+          mode: 'insensitive'
+        }
+      };
+    }
+
+    const requests = await prisma.customPackageRequest.findMany(query)
 
     res.json({
       success: true,
-      requests: requests,
+      data: requests,
     })
   } catch (error) {
     console.error("Error fetching custom package requests:", error)
@@ -338,7 +431,7 @@ router.get("/custom-package-requests", async (req, res) => {
 })
 
 // Update custom package request status
-router.put("/custom-package-requests/:id", async (req, res) => {
+router.put("/custom-package-requests/:id", [verifyToken, isAdmin], async (req, res) => {
   try {
     const { id } = req.params
     const { status } = req.body

@@ -125,3 +125,24 @@ model Booking {
   @@map("bookings")
 }
 
+model SiteSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("SALES") // 'ADMIN' or 'SALES'
+  region    String   @default("ALL") // e.g., 'Ahmedabad', 'Mumbai', 'ALL'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}

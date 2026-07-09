@@ -1,5 +1,6 @@
 import express from "express"
 import prisma from "../config/prisma.js"
+import { verifyToken, isAdmin } from "../middleware/auth.js"
 
 const router = express.Router()
 
@@ -128,7 +129,7 @@ router.get("/destinations/month/:month", async (req, res) => {
 })
 
 // Create a new destination
-router.post("/destinations", async (req, res) => {
+router.post("/destinations", [verifyToken, isAdmin], async (req, res) => {
   try {
     const newDestination = await prisma.destination.create({ data: req.body })
     res.status(201).json({ success: true, data: { destination: newDestination } })
@@ -139,7 +140,7 @@ router.post("/destinations", async (req, res) => {
 })
 
 // Update a destination by ID
-router.put("/destinations/:id", async (req, res) => {
+router.put("/destinations/:id", [verifyToken, isAdmin], async (req, res) => {
   try {
     const updatedDestination = await prisma.destination.update({
       where: { id: Number.parseInt(req.params.id) },
@@ -156,7 +157,7 @@ router.put("/destinations/:id", async (req, res) => {
 })
 
 // Delete a destination by ID
-router.delete("/destinations/:id", async (req, res) => {
+router.delete("/destinations/:id", [verifyToken, isAdmin], async (req, res) => {
   try {
     const deletedDestination = await prisma.destination.delete({
       where: { id: Number.parseInt(req.params.id) }

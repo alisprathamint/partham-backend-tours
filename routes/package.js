@@ -8,6 +8,16 @@ import {
 
 const router = express.Router()
 
+const generateSlug = (text) => {
+  if (!text) return "";
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric characters with a hyphen
+    .replace(/^-+|-+$/g, ""); // Remove leading and trailing hyphens
+};
+
 // Helper to send notification email to admin
 const sendCustomPackageNotification = async (to, subject, requestData) => {
   try {
@@ -167,7 +177,7 @@ router.get("/packages/:identifier", async (req, res) => {
     if (!package_) {
       const allPackages = await prisma.package.findMany()
       package_ = allPackages.find(
-        (p) => p.name.toLowerCase().replace(/\s+/g, "-") === identifier
+        (p) => generateSlug(p.name) === identifier
       )
     }
 

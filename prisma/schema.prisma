@@ -141,10 +141,85 @@ model User {
   name      String
   email     String   @unique
   password  String
-  role      String   @default("SALES") // 'ADMIN' or 'SALES'
-  region    String   @default("ALL") // e.g., 'Ahmedabad', 'Mumbai', 'ALL'
+  role      String   @default("SALES_EXECUTIVE") // 'SUPER_ADMIN', 'BRANCH_MANAGER', 'SALES_EXECUTIVE'
+  
+  branchId  Int?     
+  branch    Branch?  @relation("BranchUsers", fields: [branchId], references: [id])
+  
+  managedBranch Branch? @relation("BranchManager")
+
+  assignedLeads Lead[] @relation("LeadAssignee")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  city      String
+  
+  managerId Int?     @unique
+  manager   User?    @relation("BranchManager", fields: [managerId], references: [id])
+  
+  users     User[]   @relation("BranchUsers")
+  
+  leads     Lead[]   @relation("BranchLeads")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("branches")
+}
+
+model Lead {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String?
+  phone       String
+  destination String?
+  source      String   @default("WEBSITE")
+  
+  type        String   @default("LEAD") // 'LEAD' or 'QUERY'
+  status      String   @default("NEW")  
+
+  branchId    Int?
+  branch      Branch?  @relation("BranchLeads", fields: [branchId], references: [id])
+
+  assignedToId Int?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id])
+
+  notes       Note[]
+  tasks       Task[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("leads")
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  leadId    Int
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content   String
+  createdBy Int
+  createdAt DateTime @default(now())
+
+  @@map("notes")
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  leadId      Int
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  title       String
+  dueDate     DateTime
+  isCompleted Boolean  @default(false)
+  createdBy   Int
+  createdAt   DateTime @default(now())
+
+  @@map("tasks")
 }

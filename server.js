@@ -21,6 +21,8 @@ import bookingRouter from "./routes/booking.js"
 import contactRouter from "./routes/contact.js"
 import settingsRouter from "./routes/settings.js"
 import authRouter from "./routes/auth.js"
+import branchRouter from "./routes/branch.js"
+import crmRouter from "./routes/crm.js"
 
 // Resolve Node v17+ IPv6 DNS lookup issues on Windows & ISP DNS blocking for MongoDB Atlas
 dns.setDefaultResultOrder("ipv4first")
@@ -151,6 +153,8 @@ app.use((req, res, next) => {
 
 // Mount API routers
 app.use("/api", authRouter)
+app.use("/api/branches", branchRouter)
+app.use("/api/crm", crmRouter)
 app.use("/api", uploadRouter)
 app.use("/api", paymentRouter)
 app.use("/api", packageRouter)

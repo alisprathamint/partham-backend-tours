@@ -12,7 +12,11 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ 
+      where: { email },
+      include: { branch: true, managedBranch: true } 
+    });
+    
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
@@ -23,7 +27,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role, region: user.region },
+      { id: user.id, role: user.role, branchId: user.branchId },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -36,7 +40,9 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        region: user.region
+        branchId: user.branchId,
+        branch: user.branch,
+        managedBranch: user.managedBranch
       }
     });
   } catch (error) {
@@ -48,7 +54,7 @@ router.post('/login', async (req, res) => {
 // Create new user (Admin only)
 router.post('/register', [verifyToken, isAdmin], async (req, res) => {
   try {
-    const { name, email, password, role, region } = req.body;
+    const { name, email, password, role, branchId } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -62,8 +68,8 @@ router.post('/register', [verifyToken, isAdmin], async (req, res) => {
         name,
         email,
         password: hashedPassword,
-        role: role || 'SALES',
-        region: region || 'ALL'
+        role: role || 'SALES_EXECUTIVE',
+        branchId: branchId ? parseInt(branchId) : null
       }
     });
 
@@ -75,7 +81,7 @@ router.post('/register', [verifyToken, isAdmin], async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        region: newUser.region
+        branchId: newUser.branchId
       }
     });
   } catch (error) {
@@ -93,7 +99,8 @@ router.get('/users', [verifyToken, isAdmin], async (req, res) => {
         name: true,
         email: true,
         role: true,
-        region: true,
+        branchId: true,
+        branch: { select: { name: true, city: true } },
         createdAt: true
       }
     });
@@ -147,7 +154,7 @@ router.put('/profile', verifyToken, async (req, res) => {
         name: updatedUser.name,
         email: updatedUser.email,
         role: updatedUser.role,
-        region: updatedUser.region
+        branchId: updatedUser.branchId
       }
     });
   } catch (error) {

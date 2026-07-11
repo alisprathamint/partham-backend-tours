@@ -12,7 +12,7 @@ export const verifyToken = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'pratham-tours-secret-key-1234');
     req.userId = decoded.id;
     req.userRole = decoded.role;
-    req.userRegion = decoded.region;
+    req.userBranchId = decoded.branchId;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -20,8 +20,15 @@ export const verifyToken = (req, res, next) => {
 };
 
 export const isAdmin = (req, res, next) => {
-  if (req.userRole !== 'ADMIN') {
-    return res.status(403).json({ success: false, message: 'Requires Admin role' });
+  if (req.userRole !== 'SUPER_ADMIN' && req.userRole !== 'ADMIN') {
+    return res.status(403).json({ success: false, message: 'Requires Super Admin role' });
+  }
+  next();
+};
+
+export const isManagerOrAdmin = (req, res, next) => {
+  if (req.userRole !== 'SUPER_ADMIN' && req.userRole !== 'ADMIN' && req.userRole !== 'BRANCH_MANAGER') {
+    return res.status(403).json({ success: false, message: 'Requires Manager or Admin role' });
   }
   next();
 };

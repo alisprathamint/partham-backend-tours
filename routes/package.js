@@ -6,6 +6,14 @@ import {
   generateAdminCustomPackageEmailHTML,
   generateCustomerCustomPackageEmailHTML,
 } from "../utils/emailTemplates.js"
+import multer from "multer"
+import { PDFParse } from "pdf-parse"
+import { GoogleGenAI } from "@google/genai"
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+})
 
 const router = express.Router()
 
@@ -507,6 +515,91 @@ router.put("/custom-package-requests/:id", [verifyToken, isAdmin], async (req, r
       success: false,
       message: "Failed to update custom package request",
       error: error.message,
+    })
+  }
+})
+
+// Extract package details from PDF
+router.post("/packages/extract-from-pdf", [verifyToken, isAdmin, upload.single("file")], async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No PDF file uploaded" })
+    }
+
+    // Security Check: Verify Magic Bytes (Must start with %PDF-)
+    const magicBytes = req.file.buffer.subarray(0, 5).toString('utf8')
+    if (magicBytes !== '%PDF-') {
+      return res.status(400).json({ success: false, message: "Invalid file format. Only genuine PDF files are allowed." })
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ success: false, message: "GEMINI_API_KEY is not configured in backend .env file" })
+    }
+
+    // 1. Parse PDF
+    const parser = new PDFParse({ data: req.file.buffer })
+    const pdfData = await parser.getText()
+    const textContent = pdfData.text
+
+    if (!textContent || textContent.trim() === '') {
+      return res.status(400).json({ success: false, message: "Could not extract text from PDF" })
+    }
+
+    // 2. Initialize Gemini
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+
+    // 3. Prompt for Gemini
+    const prompt = `
+You are a travel package data extraction assistant.
+Extract the travel package details from the following raw text obtained from a PDF brochure.
+Format the output EXACTLY as a valid JSON object matching this structure:
+{
+  "name": "Package Name (string)",
+  "location": "Primary destination/location (string)",
+  "category": "Category like 'International', 'Domestic', 'Honeymoon', 'Adventure', or empty (string)",
+  "price": "Base price as a number/string without currency symbol (string)",
+  "duration": "e.g., '5 Days, 4 Nights' (string)",
+  "description": "A detailed overview or summary of the trip (string)",
+  "highlights": ["highlight 1", "highlight 2"],
+  "inclusions": ["inclusion 1", "inclusion 2"],
+  "exclusions": ["exclusion 1", "exclusion 2"],
+  "itinerary": [
+    {
+      "day": 1,
+      "title": "Day 1 Title",
+      "activities": ["Activity 1", "Activity 2"]
+    }
+  ]
+}
+
+Raw PDF Text:
+${textContent.substring(0, 30000)}
+
+Return ONLY the raw JSON object. Do not include markdown formatting like \`\`\`json.
+`
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: prompt,
+    })
+
+    let jsonString = response.text
+    // Clean up markdown code block if present
+    jsonString = jsonString.replace(/```json/gi, '').replace(/```/g, '').trim()
+
+    const parsedData = JSON.parse(jsonString)
+
+    res.json({
+      success: true,
+      data: parsedData
+    })
+
+  } catch (error) {
+    console.error("Error extracting from PDF:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to extract package details from PDF",
+      error: error.message
     })
   }
 })

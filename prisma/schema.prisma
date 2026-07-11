@@ -79,6 +79,7 @@ model Package {
   description      String?
   shortDescription String?
   image            String?
+  galleryImages    String[]
   rating           Float?
   reviews          Int?
   highlights       String[]
@@ -95,6 +96,7 @@ model Destination {
   name            String
   description     String?
   favorableMonths Int[]
+  image           String?
   // Add other fields as necessary
 
   @@map("destinations")

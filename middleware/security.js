@@ -40,7 +40,7 @@ const sanitizeXSSInPlace = (obj) => {
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#x27;")
-          .replace(/\//g, "&#x2F;")
+          // NOTE: Do NOT encode '/' — it breaks URL paths and image URLs
       } else if (typeof val === "object" && val !== null) {
         sanitizeXSSInPlace(val)
       }
@@ -48,8 +48,13 @@ const sanitizeXSSInPlace = (obj) => {
   }
 }
 
-// XSS Sanitizer Middleware
+// XSS Sanitizer Middleware — skips multipart/form-data (file uploads)
 export const xssSanitizer = (req, res, next) => {
+  const contentType = req.headers['content-type'] || ''
+  // Skip sanitization for file upload requests to avoid interfering with multer
+  if (contentType.includes('multipart/form-data')) {
+    return next()
+  }
   if (req.body) sanitizeXSSInPlace(req.body)
   if (req.query) sanitizeXSSInPlace(req.query)
   if (req.params) sanitizeXSSInPlace(req.params)

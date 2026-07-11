@@ -9,15 +9,31 @@ import {
 
 const router = express.Router()
 
+const decodeHtmlEntities = (str) => {
+  if (!str) return str;
+  let decoded = str;
+  for (let i = 0; i < 2; i++) {
+    decoded = decoded
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/');
+  }
+  return decoded;
+};
+
 const generateSlug = (text) => {
   if (!text) return "";
-  return text
+  return decodeHtmlEntities(text)
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric characters with a hyphen
-    .replace(/^-+|-+$/g, ""); // Remove leading and trailing hyphens
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 };
+
 
 // Helper to send notification email to admin
 const sendCustomPackageNotification = async (to, subject, requestData) => {
@@ -217,6 +233,7 @@ router.post("/packages", [verifyToken, isAdmin], async (req, res) => {
         price: data.price ? String(data.price) : "",
         duration: data.duration || "",
         image: data.image || null,
+        galleryImages: Array.isArray(data.galleryImages) ? data.galleryImages : [],
         description: data.description || null,
         featured: data.featured || false,
         highlights: Array.isArray(data.highlights) ? data.highlights : [],
@@ -250,7 +267,30 @@ router.put("/packages/:id", [verifyToken, isAdmin], async (req, res) => {
     }
 
     const data = req.body;
-    
+
+    // Fetch current package to preserve image if not changed
+    const existingPackage = await prisma.package.findUnique({ where: { id } });
+    if (!existingPackage) {
+      return res.status(404).json({ success: false, message: "Package not found" });
+    }
+
+    // Decode any HTML-encoded characters in the image URL
+    const decodeHtml = (str) => {
+      if (!str) return str;
+      return str
+        .replace(/&#x2F;/gi, '/')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'");
+    };
+
+    // Use new image only if explicitly provided (non-empty), otherwise keep existing
+    const rawImage = data.image && data.image.trim() !== '' ? data.image : existingPackage.image;
+    const imageToSave = decodeHtml(rawImage);
+
+
     const updatedPackage = await prisma.package.update({
       where: { id },
       data: {
@@ -259,13 +299,14 @@ router.put("/packages/:id", [verifyToken, isAdmin], async (req, res) => {
         category: data.category || null,
         price: data.price ? String(data.price) : "",
         duration: data.duration || "",
-        image: data.image || null,
+        image: imageToSave,
+        galleryImages: Array.isArray(data.galleryImages) ? data.galleryImages : existingPackage.galleryImages,
         description: data.description || null,
-        featured: data.featured || false,
-        highlights: Array.isArray(data.highlights) ? data.highlights : [],
-        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
-        exclusions: Array.isArray(data.exclusions) ? data.exclusions : [],
-        itinerary: data.itinerary || [],
+        featured: typeof data.featured === 'boolean' ? data.featured : existingPackage.featured,
+        highlights: Array.isArray(data.highlights) ? data.highlights : existingPackage.highlights,
+        inclusions: Array.isArray(data.inclusions) ? data.inclusions : existingPackage.inclusions,
+        exclusions: Array.isArray(data.exclusions) ? data.exclusions : existingPackage.exclusions,
+        itinerary: data.itinerary || existingPackage.itinerary,
       }
     });
 
@@ -283,6 +324,7 @@ router.put("/packages/:id", [verifyToken, isAdmin], async (req, res) => {
     });
   }
 });
+
 
 // Submit custom package request
 router.post("/submit-custom-package", async (req, res) => {

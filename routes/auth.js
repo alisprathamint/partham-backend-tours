@@ -114,4 +114,46 @@ router.delete('/users/:id', [verifyToken, isAdmin], async (req, res) => {
   }
 });
 
+// Update profile
+router.put('/profile', verifyToken, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const userId = req.userId;
+
+    const dataToUpdate = { name, email };
+    
+    // Check if email is being changed and if it's already in use
+    if (email) {
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ success: false, message: 'Email already in use' });
+      }
+    }
+
+    if (password) {
+      dataToUpdate.password = await bcrypt.hash(password, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate
+    });
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        region: updatedUser.region
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 export default router;

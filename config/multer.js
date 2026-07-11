@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
 
 // Enhanced file filter for package uploads
 const fileFilter = (req, file, cb) => {
-  const allowedImageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+  const allowedImageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
   const allowedPdfTypes = ["application/pdf"]
 
   if (file.fieldname === "brochure") {

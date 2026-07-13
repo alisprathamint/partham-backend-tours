@@ -182,10 +182,16 @@ model Lead {
   destination String?
   source      String   @default("WEBSITE")
   
-  type        String   @default("LEAD") // 'LEAD' or 'QUERY'
-  status      String   @default("NEW")  
+  type          String    @default("LEAD") // 'LEAD' or 'QUERY'
+  status        String    @default("NEW")  
+  
+  travelDate    DateTime?
+  pax           Int?
+  numDays       Int?
+  leadCategory  String?   // e.g., 'Package B2C'
+  isDuplicate   Boolean   @default(false)
 
-  branchId    Int?
+  branchId      Int?
   branch      Branch?  @relation("BranchLeads", fields: [branchId], references: [id])
 
   assignedToId Int?

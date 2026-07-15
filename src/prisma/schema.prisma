@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -33,15 +30,15 @@ model BookingRequest {
 }
 
 model Traveler {
-  id               Int             @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   booking_id       Int
-  booking          BookingRequest  @relation(fields: [booking_id], references: [id], onDelete: Cascade)
   name             String
   gender           String?
   age              String?
   lead_traveler_id Int?
-  lead_traveler    Traveler?       @relation("LeadTraveler", fields: [lead_traveler_id], references: [id])
-  dependents       Traveler[]      @relation("LeadTraveler")
+  booking          BookingRequest @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  lead_traveler    Traveler?      @relation("LeadTraveler", fields: [lead_traveler_id], references: [id])
+  dependents       Traveler[]     @relation("LeadTraveler")
 
   @@map("travelers")
 }
@@ -74,30 +71,29 @@ model Package {
   category         String?
   featured         Boolean  @default(false)
   price            String?
-  originalPrice    String?
   duration         String?
   description      String?
-  shortDescription String?
+  exclusions       String[]
+  highlights       String[]
   image            String?
-  galleryImages    String[]
+  inclusions       String[]
+  itinerary        Json?
+  originalPrice    String?
   rating           Float?
   reviews          Int?
-  highlights       String[]
-  inclusions       String[]
-  exclusions       String[]
-  itinerary        Json?
+  shortDescription String?
   pdfUrl           String?
+  galleryImages    String[]
 
   @@map("packages")
 }
 
 model Destination {
-  id              Int      @id @default(autoincrement())
+  id              Int     @id @default(autoincrement())
   name            String
   description     String?
   favorableMonths Int[]
   image           String?
-  // Add other fields as necessary
 
   @@map("destinations")
 }
@@ -137,21 +133,19 @@ model SiteSetting {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("SALES_EXECUTIVE") // 'SUPER_ADMIN', 'BRANCH_MANAGER', 'SALES_EXECUTIVE'
-  
-  branchId  Int?     
-  branch    Branch?  @relation("BranchUsers", fields: [branchId], references: [id])
-  
-  managedBranch Branch? @relation("BranchManager")
-
-  assignedLeads Lead[] @relation("LeadAssignee")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  password      String
+  role          String   @default("SALES_EXECUTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  branchId      Int?
+  refreshToken  String?
+  managedBranch Branch?  @relation("BranchManager")
+  assignedLeads Lead[]   @relation("LeadAssignee")
+  branch        Branch?  @relation("BranchUsers", fields: [branchId], references: [id])
+  notifications Notification[] @relation("UserNotifications")
 
   @@map("users")
 }
@@ -160,52 +154,42 @@ model Branch {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   city      String
-  phone     String?
-  email     String?
-  isMain    Boolean  @default(false)
-  status    String   @default("ACTIVE")
-  
   managerId Int?     @unique
-  manager   User?    @relation("BranchManager", fields: [managerId], references: [id])
-  
-  users     User[]   @relation("BranchUsers")
-  
-  leads     Lead[]   @relation("BranchLeads")
-  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  email     String?
+  isMain    Boolean  @default(false)
+  phone     String?
+  status    String   @default("ACTIVE")
+  manager   User?    @relation("BranchManager", fields: [managerId], references: [id])
+  leads     Lead[]   @relation("BranchLeads")
+  users     User[]   @relation("BranchUsers")
 
   @@map("branches")
 }
 
 model Lead {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String?
-  phone       String
-  destination String?
-  source      String   @default("WEBSITE")
-  
-  type          String    @default("LEAD") // 'LEAD' or 'QUERY'
-  status        String    @default("NEW")  
-  
-  travelDate    DateTime?
-  pax           Int?
-  numDays       Int?
-  leadCategory  String?   // e.g., 'Package B2C'
-  isDuplicate   Boolean   @default(false)
-
-  branchId      Int?
-  branch      Branch?  @relation("BranchLeads", fields: [branchId], references: [id])
-
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String?
+  phone        String
+  destination  String?
+  source       String    @default("WEBSITE")
+  type         String    @default("LEAD")
+  status       String    @default("NEW")
+  branchId     Int?
   assignedToId Int?
-  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id])
-
-  notes       Note[]
-  tasks       Task[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  isDuplicate  Boolean   @default(false)
+  leadCategory String?
+  numDays      Int?
+  pax          Int?
+  travelDate   DateTime?
+  assignedTo   User?     @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  branch       Branch?   @relation("BranchLeads", fields: [branchId], references: [id])
+  notes        Note[]
+  tasks        Task[]
 
   @@map("leads")
 }
@@ -213,23 +197,43 @@ model Lead {
 model Note {
   id        Int      @id @default(autoincrement())
   leadId    Int
-  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   content   String
   createdBy Int
   createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@map("notes")
 }
 
 model Task {
-  id          Int      @id @default(autoincrement())
-  leadId      Int
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  title       String
-  dueDate     DateTime
-  isCompleted Boolean  @default(false)
-  createdBy   Int
-  createdAt   DateTime @default(now())
+  id            Int       @id @default(autoincrement())
+  leadId        Int
+  title         String
+  note          String?
+  dueDate       DateTime
+  isCompleted   Boolean   @default(false)
+  reminderSent  Boolean   @default(false)
+  snoozedUntil  DateTime?
+  assignedToId  Int?
+  createdBy     Int
+  createdAt     DateTime  @default(now())
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
+}
+
+model Notification {
+  id            Int      @id @default(autoincrement())
+  title         String
+  message       String
+  type          String   @default("INFO")
+  isRead        Boolean  @default(false)
+  userId        Int
+  relatedEntity String?
+  entityId      Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }

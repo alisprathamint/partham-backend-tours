@@ -5,10 +5,12 @@ console.log = (...args) => {
   if (typeof message === "string") {
     const isImportantLog =
       message.startsWith("[") ||
-      message.includes("Server running") ||
-      message.includes("connection successful") ||
-      message.includes("connected") ||
-      message.includes("Error")
+      message.includes("Server") ||
+      message.toLowerCase().includes("connect") ||
+      message.includes("Error") ||
+      message.includes("✅") ||
+      message.includes("🚀") ||
+      message.includes("===")
 
     if (isImportantLog) {
       originalLog(...args)

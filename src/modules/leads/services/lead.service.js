@@ -28,7 +28,8 @@ export const createLead = async (data) => {
 export const bulkAssignLeads = async (leadIds, assignedToId, branchId) => {
   const data = {
     assignedToId: assignedToId ? parseInt(assignedToId) : null,
-    status: 'ASSIGNED'
+    status: 'NEW', // Go to 'New Query' stage
+    type: 'QUERY' // Convert to Query when assigned
   };
   
   if (branchId) {
@@ -75,5 +76,54 @@ export const createNote = async (data) => {
 export const createTask = async (data) => {
   return await prisma.task.create({
     data
+  });
+};
+
+export const updateTask = async (taskId, data) => {
+  return await prisma.task.update({
+    where: { id: parseInt(taskId) },
+    data
+  });
+};
+
+export const findUpcomingTasks = async (userId) => {
+  const now = new Date();
+  const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  return await prisma.task.findMany({
+    where: {
+      isCompleted: false,
+      dueDate: {
+        gte: past24h,
+        lte: now,
+      },
+      OR: [
+        { assignedToId: userId },
+        { createdBy: userId }
+      ],
+    },
+    include: {
+      lead: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          type: true,
+          status: true,
+          destination: true,
+        }
+      }
+    },
+    orderBy: {
+      dueDate: 'asc'
+    }
+  });
+};
+
+export const updateTaskStatus = async (taskId, isCompleted) => {
+  return await prisma.task.update({
+    where: { id: parseInt(taskId) },
+    data: { isCompleted }
   });
 };

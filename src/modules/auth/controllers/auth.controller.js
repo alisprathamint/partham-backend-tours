@@ -1,8 +1,35 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as authService from '../services/auth.service.js';
+import { sendToUser, wsConnections } from '../../../utils/wsManager.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pratham-tours-secret-key-1234';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'pratham-tours-refresh-secret-5678';
+
+// Keep activeConnections for backward compatibility (SSE session-stream)
+export const activeConnections = new Map();
+
+export const sessionStream = (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  res.flushHeaders();
+
+  const userId = req.userId;
+  
+  // Send an initial connection success event
+  res.write('data: {"status": "connected"}\n\n');
+
+  // Store connection
+  activeConnections.set(userId, res);
+
+  req.on('close', () => {
+    if (activeConnections.get(userId) === res) {
+      activeConnections.delete(userId);
+    }
+  });
+};
 
 export const login = async (req, res) => {
   try {
@@ -18,15 +45,30 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, branchId: user.branchId },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' } // Refresh token valid for 7 days
     );
+
+    const sessionHash = refreshToken.substring(refreshToken.length - 10);
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role, branchId: user.branchId, sessionHash },
+      JWT_SECRET,
+      { expiresIn: '15m' } // Changed back to 15 minutes for security
+    );
+
+    // Save refresh token to database
+    await authService.updateUserById(user.id, { refreshToken });
+
+    // Push logout event to previous active connection if exists — via WebSocket
+    sendToUser(user.id, 'logout', { message: 'New login detected' });
 
     res.json({
       success: true,
       token,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -40,6 +82,66 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { token: oldRefreshToken } = req.body;
+    
+    if (!oldRefreshToken) {
+      return res.status(401).json({ success: false, message: 'Refresh token is required' });
+    }
+
+    // Verify the refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(oldRefreshToken, JWT_REFRESH_SECRET);
+    } catch (err) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
+
+    // Check if user still exists and fetch full object including refreshToken
+    const user = await authService.findUserById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User no longer exists' });
+    }
+
+    // Verify token matches the one in DB
+    if (user.refreshToken !== oldRefreshToken) {
+      return res.status(401).json({ success: false, message: 'Refresh token is invalid or has been revoked' });
+    }
+
+    // Issue a new access token
+    const sessionHash = user.refreshToken.substring(user.refreshToken.length - 10);
+    const newAccessToken = jwt.sign(
+      { id: user.id, role: user.role, branchId: user.branchId, sessionHash },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      success: true,
+      token: newAccessToken
+    });
+
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (userId) {
+      await authService.updateUserById(userId, { refreshToken: null });
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ success: false, message: 'Server error during logout' });
   }
 };
 

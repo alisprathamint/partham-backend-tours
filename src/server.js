@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import cors from "cors";
 import compression from "compression";
 import dns from "dns";
@@ -22,6 +23,7 @@ import settingsRouter from "./modules/settings/routes/settings.route.js";
 import authRouter from "./modules/auth/routes/auth.route.js";
 import branchRouter from "./modules/branch/routes/branch.route.js";
 import leadRouter from "./modules/leads/routes/lead.route.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 // Resolve Node v17+ IPv6 DNS lookup issues on Windows & ISP DNS blocking for MongoDB Atlas
 dns.setDefaultResultOrder("ipv4first");
@@ -47,6 +49,8 @@ if (process.env.VERCEL !== "1") {
 app.use(requestLogger);
 
 const allowedOrigins = [
+  "http://192.168.29.193:5173",
+  "https://m7fv00g5-5173.inc1.devtunnels.ms",
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
@@ -57,8 +61,14 @@ const allowedOrigins = [
   "http://127.0.0.1:5174",
   "https://prathamtours.com",
   "https://www.prathamtours.com",
-  "https://pratham-tours-client-smoky.vercel.app"
+  "https://pratham-tours-client-smoky.vercel.app",
 ];
+
+if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+if (process.env.ALLOWED_ORIGINS) {
+  const customOrigins = process.env.ALLOWED_ORIGINS.split(",").map(url => url.trim());
+  allowedOrigins.push(...customOrigins);
+}
 
 // Custom CORS middleware compatible with Express 5
 app.use((req, res, next) => {
@@ -157,6 +167,7 @@ app.use("/api", destinationRouter);
 app.use("/api", bookingRouter);
 app.use("/api", contactRouter);
 app.use("/api", settingsRouter);
+app.use("/api/notifications", notificationRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {
@@ -182,18 +193,35 @@ app.use((err, req, res, next) => {
 });
 
 import prisma from "./config/prisma.js";
+import { startReminderScheduler } from "./utils/reminderScheduler.js";
+import { initWebSocketServer } from "./utils/wsManager.js";
 
 // Start server (local environment only)
 if (process.env.VERCEL !== "1") {
+  const httpServer = http.createServer(app);
+  initWebSocketServer(httpServer);
+
   prisma.$connect()
     .then(() => {
-      console.log("Database connected successfully to PostgreSQL via Prisma");
-      app.listen(port, () => {
-        console.log(`Server running on port ${port}`);
+      console.log("=========================================");
+      console.log("🚀 PRATHAM TOURS BACKEND - STARTUP STATUS");
+      console.log("=========================================");
+      console.log("✅ Database: Connected successfully to PostgreSQL via Prisma");
+      
+      startReminderScheduler();
+      console.log("✅ Scheduler: Reminder Scheduler is ACTIVE");
+      
+      console.log("✅ Auth: JWT Access Tokens ACTIVE (Expiry: 15m)");
+      console.log("✅ Auth: JWT Refresh Tokens ACTIVE (Expiry: 7d)");
+
+      httpServer.listen(port, () => {
+        console.log(`✅ Server: Running on port ${port}`);
+        console.log(`✅ WebSocket: Connected at ws://localhost:${port}/ws`);
+        console.log("=========================================");
       });
     })
     .catch((err) => {
-      console.error("Failed to connect to the database:", err);
+      console.error("❌ Failed to connect to the database:", err);
     });
 }
 

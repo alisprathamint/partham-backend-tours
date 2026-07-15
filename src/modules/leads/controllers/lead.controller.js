@@ -24,6 +24,8 @@ export const getLeads = async (req, res) => {
   }
 };
 
+import { createNotification } from '../../../controllers/notificationController.js';
+
 export const addLead = async (req, res) => {
   try {
     const { name, email, phone, destination, source, branchId, assignedToId, travelDate, pax, numDays, leadCategory, isDuplicate } = req.body;
@@ -45,6 +47,17 @@ export const addLead = async (req, res) => {
       assignedToId: assignedToId ? parseInt(assignedToId) : null
     });
 
+    if (lead.assignedToId) {
+      await createNotification({
+        userId: lead.assignedToId,
+        title: 'New Lead Assigned',
+        message: `You have been assigned a new lead: ${lead.name}`,
+        type: 'INFO',
+        relatedEntity: 'LEAD',
+        entityId: lead.id
+      });
+    }
+
     res.json({ success: true, message: 'Lead created', data: lead });
   } catch (error) {
     console.error('Error creating lead:', error);
@@ -65,6 +78,17 @@ export const bulkAssign = async (req, res) => {
     }
 
     await leadService.bulkAssignLeads(leadIds, assignedToId || null, branchId || null);
+
+    if (assignedToId) {
+      await createNotification({
+        userId: assignedToId,
+        title: 'New Leads Assigned',
+        message: `You have been bulk-assigned ${leadIds.length} new lead(s).`,
+        type: 'INFO',
+        relatedEntity: 'LEAD',
+      });
+    }
+
     res.json({ success: true, message: 'Leads assigned successfully' });
   } catch (error) {
     console.error('Error bulk assigning leads:', error);
@@ -86,9 +110,14 @@ export const updateLead = async (req, res) => {
     }
 
     // Automate moving "NEW" query to "IN_PROGRESS"
+    // Automate moving "PROPOSAL_SENT" query to "NEGOTIATION"
     let newStatus = status || existing.status;
-    if (existing.type === 'QUERY' && existing.status === 'NEW' && req.method === 'PUT') {
-        newStatus = 'IN_PROGRESS';
+    if (existing.type === 'QUERY' && req.method === 'PUT') {
+        if (existing.status === 'NEW') {
+            newStatus = 'IN_PROGRESS';
+        } else if (existing.status === 'PROPOSAL_SENT') {
+            newStatus = 'NEGOTIATION';
+        }
     }
 
     const lead = await leadService.updateLeadById(id, {
@@ -167,9 +196,18 @@ export const addNote = async (req, res) => {
     });
 
     // Automate moving "NEW" query to "IN_PROGRESS"
+    // And automate moving "PROPOSAL_SENT" query to "NEGOTIATION"
+    // And automate moving "NEGOTIATION" query to "WON" based on note content
     const existingLead = await leadService.findLeadById(id);
-    if (existingLead && existingLead.type === 'QUERY' && existingLead.status === 'NEW') {
-      await leadService.updateLeadById(id, { status: 'IN_PROGRESS' });
+    if (existingLead && existingLead.type === 'QUERY') {
+      const lowerNote = content.toLowerCase();
+      if (existingLead.status === 'NEW') {
+        await leadService.updateLeadById(id, { status: 'IN_PROGRESS' });
+      } else if (existingLead.status === 'PROPOSAL_SENT') {
+        await leadService.updateLeadById(id, { status: 'NEGOTIATION' });
+      } else if (existingLead.status === 'NEGOTIATION' && (lowerNote.includes('confirm') || lowerNote.includes('paid') || lowerNote.includes('book') || lowerNote.includes('won') || lowerNote.includes('done') || lowerNote.includes('advance'))) {
+        await leadService.updateLeadById(id, { status: 'WON' });
+      }
     }
 
     res.json({ success: true, data: note });
@@ -219,14 +257,17 @@ export const handleFollowUp = async (req, res) => {
     });
 
     // 2. Handle Task/Reminder creation
-    if (nextAction !== 'Create Query' && nextAction !== 'Lost' && followUpDate) {
+    if (nextAction !== 'Create Query' && nextAction !== 'Lost' && nextAction !== 'Deal Lost' && followUpDate) {
       const taskDateTime = new Date(`${followUpDate}T${followUpTime || '12:00'}:00`);
+      const targetAssignee = assignedToId ? parseInt(assignedToId) : (lead.assignedToId || req.userId);
       
       await leadService.createTask({
         leadId: id,
         title: `Follow up: ${nextAction}`,
+        note: details || null,
         dueDate: taskDateTime,
         isCompleted: isCompleted || false,
+        assignedToId: targetAssignee,
         createdBy: req.userId
       });
     }
@@ -235,7 +276,7 @@ export const handleFollowUp = async (req, res) => {
     let updateData = {};
     if (nextAction === 'Create Query') {
       updateData = { type: 'QUERY', status: 'NEW' };
-    } else if (nextAction === 'Lost') {
+    } else if (nextAction === 'Lost' || nextAction === 'Deal Lost') {
       updateData = { status: 'LOST' };
     } else if (assignedToId) {
       updateData = { assignedToId: parseInt(assignedToId), status: 'ASSIGNED' };
@@ -249,9 +290,80 @@ export const handleFollowUp = async (req, res) => {
       await leadService.updateLeadById(id, updateData);
     }
 
+    // Automate moving QUERY stages based on Follow Up
+    if (lead && lead.type === 'QUERY') {
+      const lowerNote = noteContent.toLowerCase();
+      if (lead.status === 'NEW') {
+        await leadService.updateLeadById(id, { status: 'IN_PROGRESS' });
+      } else if (lead.status === 'PROPOSAL_SENT') {
+        await leadService.updateLeadById(id, { status: 'NEGOTIATION' });
+      } else if (lead.status === 'NEGOTIATION' && (lowerNote.includes('confirm') || lowerNote.includes('paid') || lowerNote.includes('book') || lowerNote.includes('won') || lowerNote.includes('done') || lowerNote.includes('advance'))) {
+        await leadService.updateLeadById(id, { status: 'WON' });
+      }
+    }
+
     res.json({ success: true, message: 'Follow-up saved successfully' });
   } catch (error) {
     console.error('Error saving follow-up:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const getUpcomingTasks = async (req, res) => {
+  try {
+    const tasks = await leadService.findUpcomingTasks(req.userId);
+    res.json({ success: true, data: tasks });
+  } catch (error) {
+    console.error('Error fetching upcoming tasks:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const completeTask = async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.taskId);
+    const task = await leadService.updateTaskStatus(taskId, true);
+    res.json({ success: true, data: task });
+  } catch (error) {
+    console.error('Error completing task:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const snoozeTask = async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.taskId);
+    const { minutes = 15 } = req.body;
+    const snoozedUntil = new Date(Date.now() + minutes * 60 * 1000);
+    
+    const task = await leadService.updateTask(taskId, { 
+      snoozedUntil,
+      reminderSent: false // Reset so scheduler re-sends when snoozedUntil passes
+    });
+    res.json({ success: true, data: task });
+  } catch (error) {
+    console.error('Error snoozing task:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const rescheduleTask = async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.taskId);
+    const { dueDate, dueTime } = req.body;
+    
+    if (!dueDate) return res.status(400).json({ success: false, message: 'dueDate is required' });
+    
+    const newDueDate = new Date(`${dueDate}T${dueTime || '09:00'}:00`);
+    
+    const task = await leadService.updateTask(taskId, { 
+      dueDate: newDueDate,
+      reminderSent: false, // Reset so scheduler sends a new reminder
+      snoozedUntil: null
+    });
+    res.json({ success: true, data: task });
+  } catch (error) {
+    console.error('Error rescheduling task:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

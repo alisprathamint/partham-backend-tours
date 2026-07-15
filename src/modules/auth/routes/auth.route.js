@@ -6,6 +6,12 @@ const router = express.Router();
 
 // Login route (Public)
 router.post('/login', authController.login);
+router.post('/refresh', authController.refreshToken);
+router.post('/logout', verifyToken, authController.logout);
+
+// Session check & SSE stream
+router.get('/check-session', verifyToken, (req, res) => res.json({ success: true }));
+router.get('/session-stream', verifyToken, authController.sessionStream);
 
 // Create new user
 router.post('/register', [verifyToken, isManagerOrAdmin], authController.register);

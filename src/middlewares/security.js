@@ -3,7 +3,7 @@ import rateLimit from "express-rate-limit"
 // Global rate limiter (applied to all API routes)
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Limit each IP to 300 requests per 15 minutes
+  max: 1000, // Limit each IP to 300 requests per 15 minutes
   message: {
     success: false,
     message: "Too many requests from this IP, please try again after 15 minutes",
@@ -15,7 +15,7 @@ export const globalLimiter = rateLimit({
 // Strict rate limiter for sensitive/transactional endpoints (contact, bookings, payment)
 export const sensitiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // Limit each IP to 15 submissions per 15 minutes
+  max: 1000, // Limit each IP to 15 submissions per 15 minutes
   message: {
     success: false,
     message: "Too many attempts from this IP. Please wait 15 minutes before trying again.",
@@ -40,7 +40,7 @@ const sanitizeXSSInPlace = (obj) => {
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#x27;")
-          // NOTE: Do NOT encode '/' — it breaks URL paths and image URLs
+        // NOTE: Do NOT encode '/' — it breaks URL paths and image URLs
       } else if (typeof val === "object" && val !== null) {
         sanitizeXSSInPlace(val)
       }

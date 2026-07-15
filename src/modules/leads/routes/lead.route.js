@@ -14,4 +14,9 @@ router.post('/leads/:id/notes', verifyToken, leadController.addNote);
 router.post('/leads/:id/tasks', verifyToken, leadController.addTask);
 router.post('/leads/:id/follow-up', verifyToken, leadController.handleFollowUp);
 
+router.get('/tasks/upcoming', verifyToken, leadController.getUpcomingTasks);
+router.put('/tasks/:taskId/complete', verifyToken, leadController.completeTask);
+router.put('/tasks/:taskId/snooze', verifyToken, leadController.snoozeTask);
+router.put('/tasks/:taskId/reschedule', verifyToken, leadController.rescheduleTask);
+
 export default router;

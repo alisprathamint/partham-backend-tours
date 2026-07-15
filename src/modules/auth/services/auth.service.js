@@ -7,6 +7,13 @@ export const findUserByEmail = async (email) => {
   });
 };
 
+export const findUserById = async (id) => {
+  return await prisma.user.findUnique({
+    where: { id },
+    include: { branch: true, managedBranch: true }
+  });
+};
+
 export const createUser = async (data) => {
   return await prisma.user.create({
     data

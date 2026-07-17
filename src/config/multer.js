@@ -12,14 +12,19 @@ if (process.env.VERCEL !== "1") {
   }
 }
 
-// Configure multer for file uploads with enhanced organization
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // For Vercel, use temp directory
     if (process.env.VERCEL === "1") {
       cb(null, "/tmp")
     } else {
-      cb(null, uploadsDir)
+      const subFolder = req.query.folder || "general"
+      const targetDir = path.join(uploadsDir, subFolder)
+
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true })
+      }
+      cb(null, targetDir)
     }
   },
   filename: (req, file, cb) => {

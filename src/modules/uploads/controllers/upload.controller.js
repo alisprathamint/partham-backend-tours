@@ -2,6 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { uploadsDir } from '../../../config/multer.js';
 
+const getRelativeUploadPath = (file) => {
+  if (!file || !file.destination) return "";
+  const relative = path.relative(uploadsDir, file.destination);
+  return relative ? relative.replace(/\\/g, "/") : "";
+};
+
 export const uploadPackageFiles = async (req, res) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
@@ -20,9 +26,10 @@ export const uploadPackageFiles = async (req, res) => {
       if (files && files.length > 0) {
         const file = files[0];
         
+        const relativePath = getRelativeUploadPath(file);
         const fileUrl = process.env.VERCEL === "1" 
           ? `/tmp/${file.filename}` 
-          : `/uploads/${file.filename}`;
+          : `/uploads/${relativePath ? relativePath + "/" : ""}${file.filename}`;
 
         uploadedFiles[fieldName] = fileUrl;
         fileDetails[fieldName] = {
@@ -60,9 +67,10 @@ export const uploadSingleFile = async (req, res) => {
       });
     }
 
+    const relativePath = getRelativeUploadPath(req.file);
     const fileUrl = process.env.VERCEL === "1"
       ? `/tmp/${req.file.filename}`
-      : `/uploads/${req.file.filename}`;
+      : `/uploads/${relativePath ? relativePath + "/" : ""}${req.file.filename}`;
 
     res.json({
       success: true,
@@ -96,9 +104,10 @@ export const uploadMultipleFiles = async (req, res) => {
 
     const uploadedFiles = [];
     for (const file of req.files) {
+      const relativePath = getRelativeUploadPath(file);
       const fileUrl = process.env.VERCEL === "1"
         ? `/tmp/${file.filename}`
-        : `/uploads/${file.filename}`;
+        : `/uploads/${relativePath ? relativePath + "/" : ""}${file.filename}`;
       
       uploadedFiles.push({
         filename: file.filename,

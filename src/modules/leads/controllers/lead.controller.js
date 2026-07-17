@@ -28,13 +28,18 @@ import { createNotification } from '../../../controllers/notificationController.
 
 export const addLead = async (req, res) => {
   try {
-    const { name, email, phone, destination, source, branchId, assignedToId, travelDate, pax, numDays, leadCategory, isDuplicate } = req.body;
+    const { name, email, phone, destination, origin, priceRange, foodPref, inclusions, theme, source, branchId, assignedToId, travelDate, pax, numDays, leadCategory, isDuplicate } = req.body;
 
     const lead = await leadService.createLead({
       name,
       email,
       phone,
       destination,
+      origin,
+      priceRange,
+      foodPref,
+      inclusions: inclusions || [],
+      theme: theme || [],
       source: source || 'WEBSITE',
       travelDate: travelDate ? new Date(travelDate) : null,
       pax: pax ? parseInt(pax) : null,
@@ -126,7 +131,7 @@ export const bulkAssign = async (req, res) => {
 export const updateLead = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { status, type, travelDate, pax, numDays, leadCategory, isDuplicate, branchId, assignedToId, name, phone, email, destination } = req.body;
+    const { status, type, travelDate, pax, numDays, leadCategory, isDuplicate, branchId, assignedToId, name, phone, email, destination, origin, priceRange, foodPref, inclusions, theme } = req.body;
 
     // Check permissions
     const existing = await leadService.findLeadById(id);
@@ -154,6 +159,11 @@ export const updateLead = async (req, res) => {
       phone: phone !== undefined ? phone : existing.phone,
       email: email !== undefined ? email : existing.email,
       destination: destination !== undefined ? destination : existing.destination,
+      origin: origin !== undefined ? origin : existing.origin,
+      priceRange: priceRange !== undefined ? priceRange : existing.priceRange,
+      foodPref: foodPref !== undefined ? foodPref : existing.foodPref,
+      inclusions: inclusions !== undefined ? inclusions : existing.inclusions,
+      theme: theme !== undefined ? theme : existing.theme,
       travelDate: travelDate !== undefined ? (travelDate ? new Date(travelDate) : null) : existing.travelDate,
       pax: pax !== undefined ? (pax ? parseInt(pax) : null) : existing.pax,
       numDays: numDays !== undefined ? (numDays ? parseInt(numDays) : null) : existing.numDays,
@@ -230,8 +240,6 @@ export const addNote = async (req, res) => {
       const lowerNote = content.toLowerCase();
       if (existingLead.status === 'NEW') {
         await leadService.updateLeadById(id, { status: 'IN_PROGRESS' });
-      } else if (existingLead.status === 'PROPOSAL_SENT') {
-        await leadService.updateLeadById(id, { status: 'NEGOTIATION' });
       } else if (existingLead.status === 'NEGOTIATION' && (lowerNote.includes('confirm') || lowerNote.includes('paid') || lowerNote.includes('book') || lowerNote.includes('won') || lowerNote.includes('done') || lowerNote.includes('advance'))) {
         await leadService.updateLeadById(id, { status: 'WON' });
       }
@@ -322,8 +330,6 @@ export const handleFollowUp = async (req, res) => {
       const lowerNote = noteContent.toLowerCase();
       if (lead.status === 'NEW') {
         await leadService.updateLeadById(id, { status: 'IN_PROGRESS' });
-      } else if (lead.status === 'PROPOSAL_SENT') {
-        await leadService.updateLeadById(id, { status: 'NEGOTIATION' });
       } else if (lead.status === 'NEGOTIATION' && (lowerNote.includes('confirm') || lowerNote.includes('paid') || lowerNote.includes('book') || lowerNote.includes('won') || lowerNote.includes('done') || lowerNote.includes('advance'))) {
         await leadService.updateLeadById(id, { status: 'WON' });
       }
@@ -349,7 +355,9 @@ export const getUpcomingTasks = async (req, res) => {
 export const completeTask = async (req, res) => {
   try {
     const taskId = parseInt(req.params.taskId);
-    const task = await leadService.updateTaskStatus(taskId, true);
+    const { isCompleted } = req.body;
+    const targetStatus = isCompleted !== undefined ? isCompleted : true;
+    const task = await leadService.updateTaskStatus(taskId, targetStatus);
     res.json({ success: true, data: task });
   } catch (error) {
     console.error('Error completing task:', error);

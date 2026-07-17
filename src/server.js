@@ -50,7 +50,6 @@ app.use(requestLogger);
 
 const allowedOrigins = [
   "http://192.168.29.193:5173",
-  "https://m7fv00g5-5173.inc1.devtunnels.ms",
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
@@ -59,6 +58,8 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "https://m7fv00g5-3000.inc1.devtunnels.ms",
+  "https://m7fv00g5-5173.inc1.devtunnels.ms",
   "https://prathamtours.com",
   "https://www.prathamtours.com",
   "https://pratham-tours-client-smoky.vercel.app",

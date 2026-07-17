@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { uploadsDir } from '../../../config/multer.js';
 
-export const uploadPackageFiles = (req, res) => {
+export const uploadPackageFiles = async (req, res) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
       return res.status(400).json({
@@ -14,7 +14,8 @@ export const uploadPackageFiles = (req, res) => {
     const uploadedFiles = {};
     const fileDetails = {};
 
-    Object.keys(req.files).forEach((fieldName) => {
+    const fieldNames = Object.keys(req.files);
+    for (const fieldName of fieldNames) {
       const files = req.files[fieldName];
       if (files && files.length > 0) {
         const file = files[0];
@@ -32,7 +33,7 @@ export const uploadPackageFiles = (req, res) => {
           url: fileUrl,
         };
       }
-    });
+    }
 
     res.json({
       success: true,
@@ -50,7 +51,7 @@ export const uploadPackageFiles = (req, res) => {
   }
 };
 
-export const uploadSingleFile = (req, res) => {
+export const uploadSingleFile = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -84,7 +85,7 @@ export const uploadSingleFile = (req, res) => {
   }
 };
 
-export const uploadMultipleFiles = (req, res) => {
+export const uploadMultipleFiles = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -93,19 +94,20 @@ export const uploadMultipleFiles = (req, res) => {
       });
     }
 
-    const uploadedFiles = req.files.map((file) => {
+    const uploadedFiles = [];
+    for (const file of req.files) {
       const fileUrl = process.env.VERCEL === "1"
         ? `/tmp/${file.filename}`
         : `/uploads/${file.filename}`;
       
-      return {
+      uploadedFiles.push({
         filename: file.filename,
         originalName: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
         url: fileUrl,
-      };
-    });
+      });
+    }
 
     res.json({
       success: true,

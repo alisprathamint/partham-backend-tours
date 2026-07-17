@@ -67,26 +67,52 @@ export const addLead = async (req, res) => {
 
 export const bulkAssign = async (req, res) => {
   try {
-    const { leadIds, assignedToId, branchId } = req.body;
+    const { leadIds, assignedToId, branchId, assignMode, strategy, executiveIds, priorities } = req.body;
     
     if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid data provided' });
     }
 
-    if (!assignedToId && !branchId) {
-      return res.status(400).json({ success: false, message: 'Must provide branch or executive to assign' });
-    }
+    if (assignMode === 'STRATEGIC' || (strategy && executiveIds && executiveIds.length > 0)) {
+      if (!executiveIds || !Array.isArray(executiveIds) || executiveIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Must select at least one executive for strategic assignment' });
+      }
 
-    await leadService.bulkAssignLeads(leadIds, assignedToId || null, branchId || null);
-
-    if (assignedToId) {
-      await createNotification({
-        userId: assignedToId,
-        title: 'New Leads Assigned',
-        message: `You have been bulk-assigned ${leadIds.length} new lead(s).`,
-        type: 'INFO',
-        relatedEntity: 'LEAD',
+      const assignments = await leadService.strategicAssignLeads(leadIds, branchId, strategy, executiveIds, priorities);
+      
+      const execMap = {};
+      assignments.forEach(assign => {
+        if (!execMap[assign.assignedToId]) {
+          execMap[assign.assignedToId] = 0;
+        }
+        execMap[assign.assignedToId]++;
       });
+
+      await Promise.all(Object.keys(execMap).map(async (execId) => {
+        await createNotification({
+          userId: parseInt(execId),
+          title: 'New Leads Assigned (Strategic)',
+          message: `You have been assigned ${execMap[execId]} new lead(s) via strategic assignment.`,
+          type: 'INFO',
+          relatedEntity: 'LEAD',
+        });
+      }));
+    } else {
+      if (!assignedToId && !branchId) {
+        return res.status(400).json({ success: false, message: 'Must provide branch or executive to assign' });
+      }
+
+      await leadService.bulkAssignLeads(leadIds, assignedToId || null, branchId || null);
+
+      if (assignedToId) {
+        await createNotification({
+          userId: parseInt(assignedToId),
+          title: 'New Leads Assigned',
+          message: `You have been bulk-assigned ${leadIds.length} new lead(s).`,
+          type: 'INFO',
+          relatedEntity: 'LEAD',
+        });
+      }
     }
 
     res.json({ success: true, message: 'Leads assigned successfully' });
@@ -95,6 +121,7 @@ export const bulkAssign = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 export const updateLead = async (req, res) => {
   try {

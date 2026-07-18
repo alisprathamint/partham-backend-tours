@@ -46,8 +46,8 @@ export const addLead = async (req, res) => {
       numDays: numDays ? parseInt(numDays) : null,
       leadCategory,
       isDuplicate: isDuplicate || false,
-      type: 'LEAD',
-      status: assignedToId ? 'ASSIGNED' : 'NEW',
+      type: req.body.type || 'LEAD',
+      status: req.body.status || (assignedToId ? 'ASSIGNED' : 'NEW'),
       branchId: branchId ? parseInt(branchId) : null,
       assignedToId: assignedToId ? parseInt(assignedToId) : null
     });
@@ -131,7 +131,7 @@ export const bulkAssign = async (req, res) => {
 export const updateLead = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { status, type, travelDate, pax, numDays, leadCategory, isDuplicate, branchId, assignedToId, name, phone, email, destination, origin, priceRange, foodPref, inclusions, theme } = req.body;
+    const { status, type, travelDate, pax, numDays, leadCategory, isDuplicate, branchId, assignedToId, name, phone, email, destination, origin, priceRange, foodPref, inclusions, theme, passengerDetails } = req.body;
 
     // Check permissions
     const existing = await leadService.findLeadById(id);
@@ -170,7 +170,8 @@ export const updateLead = async (req, res) => {
       leadCategory: leadCategory !== undefined ? leadCategory : existing.leadCategory,
       isDuplicate: isDuplicate !== undefined ? isDuplicate : existing.isDuplicate,
       branchId: branchId !== undefined ? (branchId ? parseInt(branchId) : null) : existing.branchId,
-      assignedToId: assignedToId !== undefined ? (assignedToId ? parseInt(assignedToId) : null) : existing.assignedToId
+      assignedToId: assignedToId !== undefined ? (assignedToId ? parseInt(assignedToId) : null) : existing.assignedToId,
+      passengerDetails: passengerDetails !== undefined ? passengerDetails : existing.passengerDetails
     });
 
     res.json({ success: true, message: 'Lead updated', data: lead });
@@ -309,16 +310,24 @@ export const handleFollowUp = async (req, res) => {
 
     // 3. Update Lead Status / Type
     let updateData = {};
-    if (nextAction === 'Create Query') {
-      updateData = { type: 'QUERY', status: 'NEW' };
-    } else if (nextAction === 'Lost' || nextAction === 'Deal Lost') {
-      updateData = { status: 'LOST' };
-    } else if (assignedToId) {
-      updateData = { assignedToId: parseInt(assignedToId), status: 'ASSIGNED' };
+    
+    if (nextAction === 'Lost' || nextAction === 'Deal Lost') {
+      // Only Lost action keeps it as a lead
+      updateData.status = 'LOST';
+      updateData.assignedToId = assignedToId ? parseInt(assignedToId) : (lead.assignedToId || req.userId);
+    } else {
+      // ALL other actions (Create Query, Call Back, WhatsApp, Meeting, Send Quotation)
+      // → Convert LEAD to QUERY automatically so it appears in My Queries
+      if (lead.type === 'LEAD') {
+        updateData.type = 'QUERY';
+        updateData.status = 'IN_PROGRESS';
+      }
+      // Always assign to current user if no explicit assignee chosen
+      updateData.assignedToId = assignedToId ? parseInt(assignedToId) : (lead.assignedToId || req.userId);
     }
 
     if (customerType && lead.leadCategory !== customerType) {
-       updateData.leadCategory = customerType; // B2B or B2C
+       updateData.leadCategory = customerType;
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -355,7 +364,8 @@ export const getUpcomingTasks = async (req, res) => {
 export const completeTask = async (req, res) => {
   try {
     const taskId = parseInt(req.params.taskId);
-    const { isCompleted } = req.body;
+    const body = req.body || {};
+    const { isCompleted } = body;
     const targetStatus = isCompleted !== undefined ? isCompleted : true;
     const task = await leadService.updateTaskStatus(taskId, targetStatus);
     res.json({ success: true, data: task });

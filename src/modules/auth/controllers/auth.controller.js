@@ -62,9 +62,6 @@ export const login = async (req, res) => {
     // Save refresh token to database
     await authService.updateUserById(user.id, { refreshToken });
 
-    // Push logout event to previous active connection if exists — via WebSocket
-    sendToUser(user.id, 'logout', { message: 'New login detected' });
-
     res.json({
       success: true,
       token,
@@ -283,15 +280,19 @@ export const updateProfile = async (req, res) => {
 
     const updatedUser = await authService.updateUserById(userId, dataToUpdate);
 
+    const fullUser = await authService.findUserById(userId);
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
       user: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        branchId: updatedUser.branchId
+        id: fullUser.id,
+        name: fullUser.name,
+        email: fullUser.email,
+        role: fullUser.role,
+        branchId: fullUser.branchId,
+        branch: fullUser.branch,
+        managedBranch: fullUser.managedBranch
       }
     });
   } catch (error) {

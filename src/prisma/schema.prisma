@@ -188,13 +188,15 @@ model Lead {
   updatedAt    DateTime  @updatedAt
   isDuplicate  Boolean   @default(false)
   leadCategory String?
-  numDays      Int?
-  pax          Int?
-  travelDate   DateTime?
+  numDays          Int?
+  pax              Int?
+  travelDate       DateTime?
+  passengerDetails Json?
   assignedTo   User?     @relation("LeadAssignee", fields: [assignedToId], references: [id])
   branch       Branch?   @relation("BranchLeads", fields: [branchId], references: [id])
   notes        Note[]
   tasks        Task[]
+  documents    CustomerDocument[]
 
   @@map("leads")
 }
@@ -241,4 +243,28 @@ model Notification {
   user          User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model CustomerDocument {
+  id                 Int       @id @default(autoincrement())
+  leadId             Int
+  documentType       String
+  customDocumentName String?
+  category           String
+  fileUrl            String
+  originalFileName   String
+  storedFileName     String
+  mimeType           String
+  fileSize           Int
+  docNumber          String?
+  issueDate          DateTime?
+  expiryDate         DateTime?
+  passengerIndex     Int?
+  passengerLabel     String?
+  uploadedById       Int
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  lead               Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("customer_documents")
 }

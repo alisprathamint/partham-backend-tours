@@ -24,6 +24,7 @@ import settingsRouter from "./modules/settings/routes/settings.route.js";
 import authRouter from "./modules/auth/routes/auth.route.js";
 import branchRouter from "./modules/branch/routes/branch.route.js";
 import leadRouter from "./modules/leads/routes/lead.route.js";
+import documentRouter from "./modules/documents/routes/document.route.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 
 // Resolve Node v17+ IPv6 DNS lookup issues on Windows & ISP DNS blocking for MongoDB Atlas
@@ -162,6 +163,7 @@ app.use((req, res, next) => {
 app.use("/api", authRouter);
 app.use("/api/branches", branchRouter);
 app.use("/api/crm", leadRouter);
+app.use("/api/crm", documentRouter);
 app.use("/api", uploadRouter);
 app.use("/api", paymentRouter);
 app.use("/api", packageRouter);

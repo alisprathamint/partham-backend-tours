@@ -37,12 +37,12 @@ export const login = async (req, res) => {
 
     const user = await authService.findUserByEmail(email);
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Incorrect Email' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Incorrect Password' });
     }
 
     const refreshToken = jwt.sign(

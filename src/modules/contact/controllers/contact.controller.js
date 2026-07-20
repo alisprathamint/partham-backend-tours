@@ -3,6 +3,8 @@ import {
   generateAdminContactEmailHTML,
   generateCustomerContactEmailHTML
 } from '../../../utils/emailTemplates.js';
+import prisma from '../../../config/prisma.js';
+import { broadcast } from '../../../utils/wsManager.js';
 
 export const handleContactForm = async (req, res) => {
   try {
@@ -14,6 +16,28 @@ export const handleContactForm = async (req, res) => {
         message: "All fields are required",
       });
     }
+
+    // Save as a Lead in database
+    const lead = await prisma.lead.create({
+      data: {
+        name,
+        email,
+        phone,
+        destination: subject,
+        source: 'WEBSITE',
+        status: 'NEW',
+        type: 'LEAD',
+        notes: {
+          create: {
+            content: `Contact Form Message: ${message}`,
+            createdBy: 0
+          }
+        }
+      }
+    });
+
+    // Real-time broadcast to admin panel
+    broadcast('lead_updated', { action: 'create', leadId: lead.id });
 
     const { transporter: activeTransporter, from: fromEmail } = getContactTransporter();
 

@@ -1,4 +1,5 @@
 import * as leadService from '../services/lead.service.js';
+import { sendToUser, broadcast } from '../../../utils/wsManager.js';
 
 export const getLeads = async (req, res) => {
   try {
@@ -10,7 +11,7 @@ export const getLeads = async (req, res) => {
     }
 
     // Role-based filtering
-    if (req.userRole === 'SALES_EXECUTIVE') {
+    if (req.userRole === 'SALES_EXECUTIVE' || req.userRole === 'SALES') {
       where.assignedToId = req.userId;
     } else if (req.userRole === 'BRANCH_MANAGER') {
       where.branchId = req.userBranchId;
@@ -61,8 +62,14 @@ export const addLead = async (req, res) => {
         relatedEntity: 'LEAD',
         entityId: lead.id
       });
+      // Push real-time event to assigned executive
+      sendToUser(lead.assignedToId, 'lead_assigned', {
+        leadId: lead.id,
+        message: `You have been assigned a new lead: ${lead.name}`
+      });
     }
 
+    broadcast('lead_updated', { action: 'create', leadId: lead.id });
     res.json({ success: true, message: 'Lead created', data: lead });
   } catch (error) {
     console.error('Error creating lead:', error);
@@ -94,12 +101,18 @@ export const bulkAssign = async (req, res) => {
       });
 
       await Promise.all(Object.keys(execMap).map(async (execId) => {
+        const parsedExecId = parseInt(execId);
         await createNotification({
-          userId: parseInt(execId),
+          userId: parsedExecId,
           title: 'New Leads Assigned (Strategic)',
           message: `You have been assigned ${execMap[execId]} new lead(s) via strategic assignment.`,
           type: 'INFO',
           relatedEntity: 'LEAD',
+        });
+        // Push real-time event to each assigned executive
+        sendToUser(parsedExecId, 'lead_assigned', {
+          count: execMap[execId],
+          message: `You have been assigned ${execMap[execId]} new lead(s) via strategic assignment.`
         });
       }));
     } else {
@@ -110,16 +123,23 @@ export const bulkAssign = async (req, res) => {
       await leadService.bulkAssignLeads(leadIds, assignedToId || null, branchId || null);
 
       if (assignedToId) {
+        const parsedAssignedToId = parseInt(assignedToId);
         await createNotification({
-          userId: parseInt(assignedToId),
+          userId: parsedAssignedToId,
           title: 'New Leads Assigned',
           message: `You have been bulk-assigned ${leadIds.length} new lead(s).`,
           type: 'INFO',
           relatedEntity: 'LEAD',
         });
+        // Push real-time event to assigned executive
+        sendToUser(parsedAssignedToId, 'lead_assigned', {
+          count: leadIds.length,
+          message: `You have been bulk-assigned ${leadIds.length} new lead(s).`
+        });
       }
     }
 
+    broadcast('lead_updated', { action: 'assign', leadIds });
     res.json({ success: true, message: 'Leads assigned successfully' });
   } catch (error) {
     console.error('Error bulk assigning leads:', error);
@@ -174,6 +194,7 @@ export const updateLead = async (req, res) => {
       passengerDetails: passengerDetails !== undefined ? passengerDetails : existing.passengerDetails
     });
 
+    broadcast('lead_updated', { action: 'update', leadId: lead.id });
     res.json({ success: true, message: 'Lead updated', data: lead });
   } catch (error) {
     console.error('Error updating lead:', error);
@@ -199,6 +220,7 @@ export const deleteLead = async (req, res) => {
     
     await leadService.deleteLeadById(id);
 
+    broadcast('lead_updated', { action: 'delete', leadId: id });
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     console.error('Error deleting lead:', error);
@@ -215,6 +237,7 @@ export const convertLead = async (req, res) => {
       status: 'NEW'
     });
 
+    broadcast('lead_updated', { action: 'convert', leadId: lead.id });
     res.json({ success: true, message: 'Successfully converted to Query', data: lead });
   } catch (error) {
     console.error('Error converting lead:', error);

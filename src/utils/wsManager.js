@@ -25,6 +25,17 @@ export const sendToUser = (userId, type, payload = {}) => {
 };
 
 /**
+ * Broadcast a typed message to all connected clients.
+ */
+export const broadcast = (type, payload = {}) => {
+  wsConnections.forEach((ws) => {
+    if (ws.readyState === 1 /* OPEN */) {
+      ws.send(JSON.stringify({ type, data: payload }));
+    }
+  });
+};
+
+/**
  * Attach the WebSocket server to the existing HTTP server.
  * URL: ws://host/ws?token=<JWT>
  */
@@ -53,6 +64,11 @@ export const initWebSocketServer = (httpServer) => {
     // Close any stale connection for the same user
     const existing = wsConnections.get(userId);
     if (existing && existing.readyState === 1) {
+      try {
+        existing.send(JSON.stringify({ type: 'logout', data: { reason: 'replaced' } }));
+      } catch (err) {
+        // Ignore send errors if connection is dropping
+      }
       existing.close(4000, 'Replaced by new connection');
     }
     wsConnections.set(userId, ws);

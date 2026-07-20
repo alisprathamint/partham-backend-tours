@@ -28,8 +28,7 @@ export const createLead = async (data) => {
 export const bulkAssignLeads = async (leadIds, assignedToId, branchId) => {
   const data = {
     assignedToId: assignedToId ? parseInt(assignedToId) : null,
-    status: 'NEW', // Go to 'New Query' stage
-    type: 'QUERY' // Convert to Query when assigned
+    status: 'ASSIGNED'
   };
   
   if (branchId) {
@@ -216,8 +215,7 @@ export const strategicAssignLeads = async (leadIds, branchId, strategy, executiv
   const updatePromises = assignments.map(assign => {
     const data = {
       assignedToId: assign.assignedToId,
-      status: 'NEW',
-      type: 'QUERY'
+      status: 'ASSIGNED'
     };
     if (parsedBranchId) {
       data.branchId = parsedBranchId;

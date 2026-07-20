@@ -1,4 +1,3 @@
-import puppeteer from "puppeteer"
 import path from "path"
 import fs from "fs"
 
@@ -12,6 +11,10 @@ export async function generatePDF(html, outputPath) {
   let browser
   try {
     console.log("Launching Puppeteer for PDF generation...")
+    // Use dynamic import with variable to prevent Vercel from bundling Puppeteer
+    const pkgName = "puppeteer";
+    const puppeteer = (await import(pkgName)).default;
+    
     browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"]

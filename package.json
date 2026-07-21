@@ -7,8 +7,6 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "build": "prisma generate",
-    "postinstall": "prisma generate",
     "seed": "node scripts/seed-destinations.js",
     "seed:history": "node scripts/seed-historical-data.js",
     "clear:history": "node scripts/clear-historical-data.js",
